@@ -42,16 +42,25 @@ def gate(line):
 
 
 def emit(line):
-    """Write the line plus one newline; return the path written."""
+    """Write the line plus one newline; return the path written.
+
+    Reads the file back and refuses to report success unless the bytes
+    on disk are exactly the payload — a half-written entry.txt would
+    fail the sealed gate, so a write that does not round-trip is an
+    error, not a success.
+    """
     payload = line + "\n"
     try:
         PRIMARY.parent.mkdir(parents=True, exist_ok=True)
         PRIMARY.write_text(payload, encoding="utf-8")
-        return PRIMARY
+        target = PRIMARY
     except OSError:
         fallback = Path(__file__).resolve().parent / "entry.txt"
         fallback.write_text(payload, encoding="utf-8")
-        return fallback
+        target = fallback
+    if target.read_text(encoding="utf-8") != payload:
+        raise OSError("read-back mismatch on %s" % target)
+    return target
 
 
 def main():
